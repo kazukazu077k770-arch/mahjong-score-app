@@ -26,9 +26,11 @@ def update_player_stats(player, score_diff, position, yakuman_count=0, uma_score
     # 役満祝儀による追加得点計算
     yakuman_bonus = 0
     if yakuman_count > 0:
-        yakuman_bonus = yakuman_count * 40000 * st.session_state.rate
+        yakuman_bonus_value = st.session_state.get("yakuman_bonus", 40)
+        yakuman_bonus = yakuman_count * yakuman_bonus_value * 1000 * st.session_state.rate
     elif yakuman_count < 0:
-        yakuman_bonus = yakuman_count * 20000 * st.session_state.rate
+        yakuman_penalty_value = st.session_state.get("yakuman_penalty", 20)
+        yakuman_bonus = yakuman_count * yakuman_penalty_value * 1000 * st.session_state.rate
     
     # 基本統計更新（得点はレート影響なし）
     st.session_state.stats[player]["総合勝ち得点"] += final_score
@@ -138,14 +140,62 @@ def record_game(scores, special_flags=None, yakuman_counts=None):
     if "history" not in st.session_state:
         st.session_state.history = []
     
-    game_record = {
-        "scores": scores.copy(),
-        "ranks": ranks.copy(),
-        "rate": rate,
-        "special_flags": special_flags.copy() if special_flags else {},
-        "uma_scores": uma_scores.copy(),
-        "yakuman_counts": yakuman_counts.copy() if yakuman_counts else {}
-    }
+    # 今回の戦績統計を初期化
+    if "current_session_stats" not in st.session_state:
+        st.session_state.current_session_stats = {}
+    
+    # 履歴記録用のゲームデータ
+    game_record = {}
+    
+    # 各プレイヤーのゲーム記録を作成
+    for player in scores:
+        score_diff = scores[player] - base_score
+        position = ranks[player]
+        uma_score = uma_scores[player]
+        yakuman_count = yakuman_counts.get(player, 0) if yakuman_counts else 0
+        special_flag = special_flags.get(player, "なし") if special_flags else "なし"
+        
+        # 役満祝儀による追加得点計算
+        yakuman_bonus = 0
+        if yakuman_count > 0:
+            yakuman_bonus_value = st.session_state.get("yakuman_bonus", 40)
+            yakuman_bonus = yakuman_count * yakuman_bonus_value * 1000 * rate
+        elif yakuman_count < 0:
+            yakuman_penalty_value = st.session_state.get("yakuman_penalty", 20)
+            yakuman_bonus = yakuman_count * yakuman_penalty_value * 1000 * rate
+        
+        # 確定値計算
+        final_score = score_diff + uma_score
+        confirmed_value = (final_score + yakuman_bonus) * rate / 10
+        
+        # ゲーム記録に追加
+        game_record[player] = {
+            'score': scores[player],
+            'score_diff': final_score,
+            'position': position,
+            'yakuman': yakuman_count,
+            'special': special_flag,
+            'confirmed_value': confirmed_value
+        }
+        
+        # 今回の戦績統計を更新
+        if player not in st.session_state.current_session_stats:
+            st.session_state.current_session_stats[player] = {
+                '1位': 0, '2位': 0, '3位': 0, '4位': 0,
+                '総合勝ち得点': 0, '役満': 0, '跳ばし': 0, '跳び': 0
+            }
+        
+        st.session_state.current_session_stats[player][f"{position}位"] += 1
+        st.session_state.current_session_stats[player]["総合勝ち得点"] += final_score
+        
+        if special_flag == "跳ばし":
+            st.session_state.current_session_stats[player]["跳ばし"] += 1
+        elif special_flag == "跳び":
+            st.session_state.current_session_stats[player]["跳び"] += 1
+        
+        if yakuman_count > 0:
+            st.session_state.current_session_stats[player]["役満"] += yakuman_count
+    
     st.session_state.history.append(game_record)
     
     # データの自動保存
@@ -177,3 +227,56 @@ def calculate_uma_scores(scores, ranks):
         uma_scores[player] = uma_values[rank] * 1000  # ウマは千点単位
     
     return uma_scores
+
+
+def undo_last_game():
+    """直近のゲーム結果を取り消す"""
+    if not hasattr(st.session_state, 'history') or not st.session_state.history:
+        return False, "取り消すゲーム記録がありません"
+    
+    # 最後のゲーム記録を取得
+    last_game = st.session_state.history.pop()
+    
+    # 統計から最後のゲームの結果を減算
+    for player, game_data in last_game.items():
+        if player in st.session_state.stats:
+            # 順位統計を減算
+            position = game_data.get('position', 1)
+            st.session_state.stats[player][f"{position}位"] -= 1
+            
+            # 得点を減算
+            st.session_state.stats[player]["総合勝ち得点"] -= game_data.get('score_diff', 0)
+            st.session_state.stats[player]["確定値"] -= game_data.get('confirmed_value', 0)
+            
+            # 特殊記録を減算
+            if game_data.get('special') == '跳ばし':
+                st.session_state.stats[player]["跳ばし"] -= 1
+            elif game_data.get('special') == '跳び':
+                st.session_state.stats[player]["跳び"] -= 1
+            
+            # 役満記録を減算
+            yakuman_count = game_data.get('yakuman', 0)
+            if yakuman_count > 0:
+                st.session_state.stats[player]["役満"] -= yakuman_count
+    
+    # 今回の戦績からも減算
+    if hasattr(st.session_state, 'current_session_stats'):
+        for player, game_data in last_game.items():
+            if player in st.session_state.current_session_stats:
+                position = game_data.get('position', 1)
+                st.session_state.current_session_stats[player][f"{position}位"] -= 1
+                st.session_state.current_session_stats[player]["総合勝ち得点"] -= game_data.get('score_diff', 0)
+                
+                if game_data.get('special') == '跳ばし':
+                    st.session_state.current_session_stats[player]["跳ばし"] -= 1
+                elif game_data.get('special') == '跳び':
+                    st.session_state.current_session_stats[player]["跳び"] -= 1
+                
+                yakuman_count = game_data.get('yakuman', 0)
+                if yakuman_count > 0:
+                    st.session_state.current_session_stats[player]["役満"] -= yakuman_count
+    
+    # データを保存
+    auto_save()
+    
+    return True, "直近のゲーム記録を取り消しました"

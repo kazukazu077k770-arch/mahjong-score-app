@@ -8,7 +8,7 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 from modules.score_utils import (
     validate_scores, update_player_stats, create_stats_dataframe, 
-    format_score, export_stats_to_csv, record_game
+    format_score, export_stats_to_csv, record_game, undo_last_game
 )
 from modules.data_init import clear_all_data, init_widget_defaults, reset_widget_values, init_uma_settings, save_current_state
 
@@ -43,9 +43,7 @@ def show_mobile_score_entry():
         # 利用可能プレイヤーがない場合は初期化
         if "available_players" not in st.session_state:
             st.session_state.available_players = [
-                "杉村", "三瓶", "福原", "松井", 
-                "プレイヤー1", "プレイヤー2", "プレイヤー3", "プレイヤー4",
-                "プレイヤー5", "プレイヤー6", "プレイヤー7", "プレイヤー8"
+                "杉村", "三瓶", "福原", "松井"
             ]
         
         if st.session_state.game_type == "四麻":
@@ -108,12 +106,20 @@ def show_mobile_score_entry():
             with col3:
                 uma_3rd_sanma = st.number_input("3位ウマ", min_value=-50, max_value=50, value=st.session_state.get("uma_3rd_sanma", -10), step=1, key="uma_3rd_sanma")
         
+        # 役満祝儀設定
+        st.write("### 役満祝儀設定")
+        col1, col2 = st.columns(2)
+        with col1:
+            yakuman_bonus = st.number_input("役満祝儀（+1の場合）", min_value=0, max_value=100, value=st.session_state.get("yakuman_bonus", 40), step=5, key="yakuman_bonus", help="役満祝儀が+1の時の加点")
+        with col2:
+            yakuman_penalty = st.number_input("役満祝儀（-1の場合）", min_value=0, max_value=100, value=st.session_state.get("yakuman_penalty", 20), step=5, key="yakuman_penalty", help="役満祝儀が-1の時の減点")
+        
         # プレイヤー名編集
         st.write("### プレイヤー名編集")
         st.info("利用可能プレイヤーリストを編集できます。")
         
-        # 現在の利用可能プレイヤーを編集
-        for i in range(min(8, len(st.session_state.available_players))):
+        # 現在の利用可能プレイヤーを編集（4人まで）
+        for i in range(min(4, len(st.session_state.available_players))):
             if i < len(st.session_state.available_players):
                 current_name = st.session_state.available_players[i]
                 new_name = st.text_input(f"プレイヤー {i+1}", value=current_name, key=f"edit_player_{i}")
@@ -139,6 +145,31 @@ def show_mobile_score_entry():
                     # 設定を保存
                     save_current_state()
                     st.rerun()
+        
+        # 統計データクリーンアップ
+        st.write("### 統計データ管理")
+        if st.button("🗑️ プレイヤー1〜8の統計データを削除", help="プレイヤー1、プレイヤー2...プレイヤー8の統計データを削除します"):
+            deleted_players = []
+            for i in range(1, 9):
+                player_name = f"プレイヤー{i}"
+                if player_name in st.session_state.stats:
+                    del st.session_state.stats[player_name]
+                    deleted_players.append(player_name)
+                
+                # 今回の戦績からも削除
+                if hasattr(st.session_state, 'current_session_stats') and player_name in st.session_state.current_session_stats:
+                    del st.session_state.current_session_stats[player_name]
+                
+                # 利用可能プレイヤーリストからも削除
+                if player_name in st.session_state.available_players:
+                    st.session_state.available_players.remove(player_name)
+            
+            if deleted_players:
+                st.success(f"✅ {', '.join(deleted_players)} の統計データを削除しました")
+                save_current_state()
+                st.rerun()
+            else:
+                st.info("削除対象のプレイヤーが見つかりませんでした")
     
     # 点数入力セクション - スマホ特化2x2グリッド
     st.markdown("### 点数入力")
@@ -457,9 +488,11 @@ def show_mobile_score_entry():
             yakuman_count = yakuman_counts.get(player, 0)
             yakuman_bonus = 0
             if yakuman_count > 0:
-                yakuman_bonus = yakuman_count * 40000 * st.session_state.rate
+                yakuman_bonus_value = st.session_state.get("yakuman_bonus", 40)
+                yakuman_bonus = yakuman_count * yakuman_bonus_value * 1000 * st.session_state.rate
             elif yakuman_count < 0:
-                yakuman_bonus = yakuman_count * 20000 * st.session_state.rate
+                yakuman_penalty_value = st.session_state.get("yakuman_penalty", 20)
+                yakuman_bonus = yakuman_count * yakuman_penalty_value * 1000 * st.session_state.rate
             
             # 確定値（レート×点数÷10）
             confirmed_value = (final_score + yakuman_bonus) * st.session_state.rate / 10
@@ -509,10 +542,12 @@ def show_mobile_score_entry():
     for player, yakuman_count in yakuman_counts.items():
         if yakuman_count != 0:
             if yakuman_count > 0:
-                adjustment = yakuman_count * 40000 * st.session_state.rate
+                yakuman_bonus_value = st.session_state.get("yakuman_bonus", 40)
+                adjustment = yakuman_count * yakuman_bonus_value * 1000 * st.session_state.rate
                 yakuman_details.append(f"{player}: +{yakuman_count}役満 = +{adjustment:,.0f}pt")
             else:
-                adjustment = yakuman_count * 20000 * st.session_state.rate
+                yakuman_penalty_value = st.session_state.get("yakuman_penalty", 20)
+                adjustment = yakuman_count * yakuman_penalty_value * 1000 * st.session_state.rate
                 yakuman_details.append(f"{player}: {yakuman_count}役満 = {adjustment:,.0f}pt")
             total_yakuman_adjustment += adjustment
     
@@ -549,6 +584,16 @@ def show_mobile_score_entry():
             st.rerun()
     else:
         st.button("📝 記録（点数を確認してください）", disabled=True, use_container_width=True)
+    
+    # 直近ゲーム取り消しボタン
+    if st.session_state.get("history") and len(st.session_state.history) > 0:
+        if st.button("↩️ 直近ゲーム取り消し", type="secondary", use_container_width=True, help="最後に記録したゲームを取り消します"):
+            success, message = undo_last_game()
+            if success:
+                st.success(f"✅ {message}")
+            else:
+                st.warning(f"⚠️ {message}")
+            st.rerun()
     
     # 統計表示
     show_statistics()
@@ -792,3 +837,139 @@ def show_rank_analysis(df):
                     )
                     fig.update_layout(height=300)
                     st.plotly_chart(fig, use_container_width=True)
+
+    # 今回の戦績機能（セッション統計）
+    render_current_session_stats()
+
+
+def render_current_session_stats():
+    """今回の戦績表示UIコンポーネント"""
+    if not hasattr(st.session_state, 'current_session_stats') or not st.session_state.current_session_stats:
+        return
+    
+    # セッション統計の確認
+    has_session_data = False
+    for player_stats in st.session_state.current_session_stats.values():
+        total_games = player_stats.get('1位', 0) + player_stats.get('2位', 0) + player_stats.get('3位', 0) + player_stats.get('4位', 0)
+        if total_games > 0:
+            has_session_data = True
+            break
+    
+    if not has_session_data:
+        return
+    
+    st.markdown("### 🎯 今回の戦績")
+    
+    # セッション統計をDataFrameに変換
+    session_df = create_current_session_dataframe()
+    
+    if not session_df.empty:
+        # 表示用データフレームを作成
+        display_data = []
+        for _, row in session_df.iterrows():
+            player = row['プレイヤー']
+            total_games = row['1位'] + row['2位'] + row['3位'] + row['4位']
+            
+            if total_games > 0:
+                avg_rank = (row['1位'] * 1 + row['2位'] * 2 + row['3位'] * 3 + row['4位'] * 4) / total_games
+                rate = st.session_state.get("rate", 1.0)
+                
+                display_data.append({
+                    'プレイヤー': player,
+                    'ゲーム数': total_games,
+                    '平均順位': avg_rank,
+                    '1位率': row['1位'] / total_games,
+                    '2位率': row['2位'] / total_games,
+                    '3位率': row['3位'] / total_games,
+                    '4位率': row['4位'] / total_games,
+                    '累計得点': row['総合勝ち得点'],
+                    'レート込み': row['総合勝ち得点'] * rate,
+                    '役満': row['役満'],
+                    '跳ばし': row['跳ばし'],
+                    '跳び': row['跳び']
+                })
+        
+        if display_data:
+            display_df = pd.DataFrame(display_data)
+            
+            # スタイリングされたテーブル表示
+            styled_df = display_df.style.format({
+                "ゲーム数": "{:.0f}",
+                "平均順位": "{:.2f}",
+                "1位率": "{:.1%}",
+                "2位率": "{:.1%}",
+                "3位率": "{:.1%}",
+                "4位率": "{:.1%}",
+                "累計得点": "{:.1f}",
+                "レート込み": "{:.1f}",
+                "役満": "{:.0f}",
+                "跳ばし": "{:.0f}",
+                "跳び": "{:.0f}"
+            }).set_properties(**{
+                'text-align': 'center'
+            })
+            
+            st.dataframe(styled_df, use_container_width=True, hide_index=True)
+            
+            # 清算ボタン - 目立つスタイル
+            st.markdown("---")
+            st.markdown("""
+            <div style="text-align: center; margin: 1rem 0;">
+                <p style="color: #ff6b35; font-weight: bold; margin-bottom: 0.5rem;">
+                    💰 今回の戦績を確定値に反映しますか？
+                </p>
+            </div>
+            """, unsafe_allow_html=True)
+            
+            col1, col2, col3 = st.columns([1, 2, 1])
+            with col2:
+                if st.button("🧮 清算実行", type="primary", use_container_width=True, help="今回の戦績を確定値に反映し、今回の戦績をリセットします"):
+                    settle_current_session()
+                    st.success("✅ 今回の戦績を確定値に反映しました！")
+                    st.rerun()
+
+
+def create_current_session_dataframe():
+    """今回のセッション統計をDataFrameに変換"""
+    if not hasattr(st.session_state, 'current_session_stats'):
+        return pd.DataFrame()
+    
+    session_data = []
+    for player, stats in st.session_state.current_session_stats.items():
+        session_data.append({
+            'プレイヤー': player,
+            '1位': stats.get('1位', 0),
+            '2位': stats.get('2位', 0), 
+            '3位': stats.get('3位', 0),
+            '4位': stats.get('4位', 0),
+            '総合勝ち得点': stats.get('総合勝ち得点', 0),
+            '役満': stats.get('役満', 0),
+            '跳ばし': stats.get('跳ばし', 0),
+            '跳び': stats.get('跳び', 0)
+        })
+    
+    return pd.DataFrame(session_data)
+
+
+def settle_current_session():
+    """今回の戦績を確定値に反映"""
+    if not hasattr(st.session_state, 'current_session_stats'):
+        return
+    
+    # 現在の統計に今回の戦績を加算
+    for player, session_stats in st.session_state.current_session_stats.items():
+        if player not in st.session_state.stats:
+            st.session_state.stats[player] = {
+                '1位': 0, '2位': 0, '3位': 0, '4位': 0,
+                '総合勝ち得点': 0, '役満': 0, '跳ばし': 0, '跳び': 0
+            }
+        
+        # 統計を加算
+        for key, value in session_stats.items():
+            st.session_state.stats[player][key] = st.session_state.stats[player].get(key, 0) + value
+    
+    # 今回の戦績をリセット
+    st.session_state.current_session_stats = {}
+    
+    # データを保存
+    save_current_state()
