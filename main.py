@@ -17,17 +17,22 @@ def setup_page_config():
 
 def main():
     """アプリケーションのメインエントリーポイント"""
-    # ページ設定
-    setup_page_config()
-    
-    # アプリケーション状態の初期化
-    init_app_state()
-    
-    # モバイル特化CSSの適用
-    load_mobile_css()
-    
-    # メインインターフェース表示
-    show_mobile_score_entry()
+    try:
+        # ページ設定
+        setup_page_config()
+        
+        # アプリケーション状態の初期化
+        init_app_state()
+        
+        # モバイル特化CSSの適用
+        load_mobile_css()
+        
+        # メインインターフェース表示
+        show_mobile_score_entry()
+        
+    except Exception as e:
+        st.error(f"アプリケーションの初期化に失敗しました: {e}")
+        st.error("ページを再読み込みしてください。")
 
 if __name__ == "__main__":
     main()

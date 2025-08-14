@@ -15,11 +15,18 @@ SETTINGS_FILE = DATA_DIR / "app_settings.json"
 
 def ensure_data_directory():
     """データディレクトリの存在確認と作成"""
-    DATA_DIR.mkdir(exist_ok=True)
+    try:
+        DATA_DIR.mkdir(exist_ok=True)
+        return True
+    except (PermissionError, OSError):
+        # クラウド環境で書き込み権限がない場合はスキップ
+        return False
 
 def save_stats():
     """統計データの保存"""
-    ensure_data_directory()
+    if not ensure_data_directory():
+        # ディレクトリ作成に失敗した場合はスキップ
+        return False
     
     data = {
         "stats": st.session_state.get("stats", {}),
@@ -32,7 +39,8 @@ def save_stats():
             json.dump(data, f, ensure_ascii=False, indent=2)
         return True
     except Exception as e:
-        st.error(f"統計データの保存に失敗しました: {e}")
+        # クラウド環境ではファイル保存をスキップ
+        return False
         return False
 
 def load_stats():
@@ -50,7 +58,8 @@ def load_stats():
 
 def save_history():
     """対戦履歴の保存"""
-    ensure_data_directory()
+    if not ensure_data_directory():
+        return False
     
     data = {
         "history": st.session_state.get("history", []),
@@ -63,7 +72,6 @@ def save_history():
             json.dump(data, f, ensure_ascii=False, indent=2)
         return True
     except Exception as e:
-        st.error(f"対戦履歴の保存に失敗しました: {e}")
         return False
 
 def load_history():
@@ -81,7 +89,8 @@ def load_history():
 
 def save_settings():
     """アプリ設定の保存"""
-    ensure_data_directory()
+    if not ensure_data_directory():
+        return False
     
     data = {
         "settings": {
@@ -108,7 +117,6 @@ def save_settings():
             json.dump(data, f, ensure_ascii=False, indent=2)
         return True
     except Exception as e:
-        st.error(f"設定の保存に失敗しました: {e}")
         return False
 
 def load_settings():
