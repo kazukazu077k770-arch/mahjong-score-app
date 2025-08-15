@@ -27,10 +27,22 @@ def show_mobile_score_entry():
             game_type = st.selectbox("ゲーム種別", ["四麻", "三麻"], index=0)
             if game_type != st.session_state.game_type:
                 st.session_state.game_type = game_type
+                
+                # 利用可能プレイヤーリストが初期化されていない場合は初期化
+                if "available_players" not in st.session_state:
+                    st.session_state.available_players = ["杉村", "三瓶", "福原", "松井"]
+                
+                # ゲーム種別変更時にプレイヤーリストを更新
                 if game_type == "三麻":
                     st.session_state.players = st.session_state.get("selected_players", ["杉村", "三瓶", "福原"])[:3]
+                    # 三麻の場合、各プレイヤーの持ち点数を35000にリセット
+                    for player in st.session_state.available_players:
+                        st.session_state[f"score_{player}"] = 35000
                 else:
                     st.session_state.players = st.session_state.get("selected_players", ["杉村", "三瓶", "福原", "松井"])[:4]
+                    # 四麻の場合、各プレイヤーの持ち点数を25000にリセット
+                    for player in st.session_state.available_players:
+                        st.session_state[f"score_{player}"] = 25000
                 st.rerun()
         
         with col2:
@@ -112,7 +124,7 @@ def show_mobile_score_entry():
         with col1:
             yakuman_bonus = st.number_input("役満祝儀（+1の場合）", min_value=0, max_value=100, value=st.session_state.get("yakuman_bonus", 40), step=5, key="yakuman_bonus", help="役満祝儀が+1の時の加点")
         with col2:
-            yakuman_penalty = st.number_input("役満祝儀（-1の場合）", min_value=0, max_value=100, value=st.session_state.get("yakuman_penalty", 20), step=5, key="yakuman_penalty", help="役満祝儀が-1の時の減点")
+            yakuman_penalty = st.number_input("役満祝儀（-1の場合）", min_value=-100, max_value=100, value=st.session_state.get("yakuman_penalty", -20), step=5, key="yakuman_penalty", help="役満祝儀が-1の時の減点（負の値で設定）")
         
         # プレイヤー名編集
         st.write("### プレイヤー名編集")
@@ -191,11 +203,12 @@ def show_mobile_score_entry():
             st.markdown(f'<div class="player-name">{player}</div>', unsafe_allow_html=True)
             
             # 基本点数入力
+            default_score = 25000 if st.session_state.game_type == "四麻" else 35000
             base_score = st.number_input(
                 "点数", 
                 min_value=-100000, 
                 max_value=100000, 
-                value=st.session_state.get(f"score_{player}", 25000), 
+                value=st.session_state.get(f"score_{player}", default_score), 
                 step=1000,
                 key=f"score_{player}",
                 label_visibility="collapsed"
@@ -224,9 +237,11 @@ def show_mobile_score_entry():
             # 役満祝儀による点数調整（合計には影響しない）
             yakuman_adjustment = 0
             if yakuman_count > 0:
-                yakuman_adjustment = yakuman_count * 40000 * st.session_state.rate
+                yakuman_bonus_value = st.session_state.get("yakuman_bonus", 40)
+                yakuman_adjustment = yakuman_count * yakuman_bonus_value * 1000 * st.session_state.rate
             elif yakuman_count < 0:
-                yakuman_adjustment = yakuman_count * 20000 * st.session_state.rate
+                yakuman_penalty_value = st.session_state.get("yakuman_penalty", -20)
+                yakuman_adjustment = yakuman_count * abs(yakuman_penalty_value) * 1000 * st.session_state.rate
             
             # 最終スコア計算
             final_score = base_score
@@ -247,11 +262,12 @@ def show_mobile_score_entry():
             st.markdown(f'<div class="player-name">{player}</div>', unsafe_allow_html=True)
             
             # 基本点数入力
+            default_score = 25000 if st.session_state.game_type == "四麻" else 35000
             base_score = st.number_input(
                 "点数", 
                 min_value=-100000, 
                 max_value=100000, 
-                value=st.session_state.get(f"score_{player}", 25000), 
+                value=st.session_state.get(f"score_{player}", default_score), 
                 step=1000,
                 key=f"score_{player}",
                 label_visibility="collapsed"
@@ -298,11 +314,12 @@ def show_mobile_score_entry():
             st.markdown(f'<div class="player-name">{player}</div>', unsafe_allow_html=True)
             
             # 基本点数入力
+            default_score = 25000 if st.session_state.game_type == "四麻" else 35000
             base_score = st.number_input(
                 "点数", 
                 min_value=-100000, 
                 max_value=100000, 
-                value=st.session_state.get(f"score_{player}", 25000), 
+                value=st.session_state.get(f"score_{player}", default_score), 
                 step=1000,
                 key=f"score_{player}",
                 label_visibility="collapsed"
@@ -347,11 +364,12 @@ def show_mobile_score_entry():
             st.markdown(f'<div class="player-name">{player}</div>', unsafe_allow_html=True)
             
             # 基本点数入力
+            default_score = 25000 if st.session_state.game_type == "四麻" else 35000
             base_score = st.number_input(
                 "点数", 
                 min_value=-100000, 
                 max_value=100000, 
-                value=st.session_state.get(f"score_{player}", 25000), 
+                value=st.session_state.get(f"score_{player}", default_score), 
                 step=1000,
                 key=f"score_{player}",
                 label_visibility="collapsed"
@@ -400,11 +418,12 @@ def show_mobile_score_entry():
                 st.markdown(f'<div class="player-name">{player}</div>', unsafe_allow_html=True)
                 
                 # 基本点数入力
+                default_score = 25000 if st.session_state.game_type == "四麻" else 35000
                 base_score = st.number_input(
                     "点数", 
                     min_value=-100000, 
                     max_value=100000, 
-                    value=st.session_state.get(f"score_{player}", 35000), 
+                    value=st.session_state.get(f"score_{player}", default_score), 
                     step=1000,
                     key=f"score_{player}",
                     label_visibility="collapsed"
@@ -491,8 +510,8 @@ def show_mobile_score_entry():
                 yakuman_bonus_value = st.session_state.get("yakuman_bonus", 40)
                 yakuman_bonus = yakuman_count * yakuman_bonus_value * 1000 * st.session_state.rate
             elif yakuman_count < 0:
-                yakuman_penalty_value = st.session_state.get("yakuman_penalty", 20)
-                yakuman_bonus = yakuman_count * yakuman_penalty_value * 1000 * st.session_state.rate
+                yakuman_penalty_value = st.session_state.get("yakuman_penalty", -20)
+                yakuman_bonus = yakuman_count * abs(yakuman_penalty_value) * 1000 * st.session_state.rate
             
             # 確定値（レート×点数÷10）
             confirmed_value = (final_score + yakuman_bonus) * st.session_state.rate / 10
@@ -546,8 +565,8 @@ def show_mobile_score_entry():
                 adjustment = yakuman_count * yakuman_bonus_value * 1000 * st.session_state.rate
                 yakuman_details.append(f"{player}: +{yakuman_count}役満 = +{adjustment:,.0f}pt")
             else:
-                yakuman_penalty_value = st.session_state.get("yakuman_penalty", 20)
-                adjustment = yakuman_count * yakuman_penalty_value * 1000 * st.session_state.rate
+                yakuman_penalty_value = st.session_state.get("yakuman_penalty", -20)
+                adjustment = yakuman_count * abs(yakuman_penalty_value) * 1000 * st.session_state.rate
                 yakuman_details.append(f"{player}: {yakuman_count}役満 = {adjustment:,.0f}pt")
             total_yakuman_adjustment += adjustment
     
@@ -585,6 +604,21 @@ def show_mobile_score_entry():
     else:
         st.button("📝 記録（点数を確認してください）", disabled=True, use_container_width=True)
     
+    # 今回の戦績ボタン
+    if hasattr(st.session_state, 'current_session_stats') and st.session_state.current_session_stats:
+        # セッション統計の確認
+        has_session_data = False
+        for player_stats in st.session_state.current_session_stats.values():
+            total_games = player_stats.get('1位', 0) + player_stats.get('2位', 0) + player_stats.get('3位', 0) + player_stats.get('4位', 0)
+            if total_games > 0:
+                has_session_data = True
+                break
+        
+        if has_session_data:
+            if st.button("📊 今回の戦績", type="secondary", use_container_width=True, help="清算前の今回のセッション戦績を表示します"):
+                st.session_state.show_current_session = not st.session_state.get("show_current_session", False)
+                st.rerun()
+    
     # 直近ゲーム取り消しボタン
     if st.session_state.get("history") and len(st.session_state.history) > 0:
         if st.button("↩️ 直近ゲーム取り消し", type="secondary", use_container_width=True, help="最後に記録したゲームを取り消します"):
@@ -594,6 +628,10 @@ def show_mobile_score_entry():
             else:
                 st.warning(f"⚠️ {message}")
             st.rerun()
+    
+    # 今回の戦績の条件付き表示
+    if st.session_state.get("show_current_session", False):
+        render_current_session_stats()
     
     # 統計表示
     show_statistics()
@@ -838,9 +876,6 @@ def show_rank_analysis(df):
                     fig.update_layout(height=300)
                     st.plotly_chart(fig, use_container_width=True)
 
-    # 今回の戦績機能（セッション統計）
-    render_current_session_stats()
-
 
 def render_current_session_stats():
     """今回の戦績表示UIコンポーネント"""
@@ -961,7 +996,7 @@ def settle_current_session():
         if player not in st.session_state.stats:
             st.session_state.stats[player] = {
                 '1位': 0, '2位': 0, '3位': 0, '4位': 0,
-                '総合勝ち得点': 0, '役満': 0, '跳ばし': 0, '跳び': 0
+                '総合勝ち得点': 0, '役満': 0, '跳ばし': 0, '跳び': 0, '確定値': 0
             }
         
         # 統計を加算

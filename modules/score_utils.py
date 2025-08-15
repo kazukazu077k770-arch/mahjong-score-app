@@ -125,16 +125,10 @@ def record_game(scores, special_flags=None, yakuman_counts=None):
         # 役満祝儀の回数
         yakuman_count = yakuman_counts.get(player, 0) if yakuman_counts else 0
         
-        # 統計更新
-        update_player_stats(player, score_diff, position, yakuman_count, uma_score)
-        
-        # 特殊フラグの処理（モバイル版用）
+        # 特殊フラグの処理用の今回の戦績更新（総合統計には反映しない）
         if special_flags and player in special_flags:
             flag = special_flags[player]
-            if flag == "跳ばし":
-                st.session_state.stats[player]["跳ばし"] += 1
-            elif flag == "跳び":
-                st.session_state.stats[player]["跳び"] += 1
+            # 今回の戦績に特殊フラグを記録（必要に応じて後で実装）
     
     # 履歴に追加
     if "history" not in st.session_state:
@@ -161,8 +155,8 @@ def record_game(scores, special_flags=None, yakuman_counts=None):
             yakuman_bonus_value = st.session_state.get("yakuman_bonus", 40)
             yakuman_bonus = yakuman_count * yakuman_bonus_value * 1000 * rate
         elif yakuman_count < 0:
-            yakuman_penalty_value = st.session_state.get("yakuman_penalty", 20)
-            yakuman_bonus = yakuman_count * yakuman_penalty_value * 1000 * rate
+            yakuman_penalty_value = st.session_state.get("yakuman_penalty", -20)
+            yakuman_bonus = yakuman_count * abs(yakuman_penalty_value) * 1000 * rate
         
         # 確定値計算
         final_score = score_diff + uma_score
@@ -182,11 +176,12 @@ def record_game(scores, special_flags=None, yakuman_counts=None):
         if player not in st.session_state.current_session_stats:
             st.session_state.current_session_stats[player] = {
                 '1位': 0, '2位': 0, '3位': 0, '4位': 0,
-                '総合勝ち得点': 0, '役満': 0, '跳ばし': 0, '跳び': 0
+                '総合勝ち得点': 0, '役満': 0, '跳ばし': 0, '跳び': 0, '確定値': 0
             }
         
         st.session_state.current_session_stats[player][f"{position}位"] += 1
         st.session_state.current_session_stats[player]["総合勝ち得点"] += final_score
+        st.session_state.current_session_stats[player]["確定値"] += confirmed_value
         
         if special_flag == "跳ばし":
             st.session_state.current_session_stats[player]["跳ばし"] += 1
